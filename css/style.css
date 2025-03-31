@@ -1,42 +1,9 @@
-.container {
-    border: 2px solid black;
+.gratBackground {
+    fill: #D5E3FF; /* Light blue fill representing water */
 }
 
-.circles {
-    opacity: 0.8;
-    transition: 0.3s;
-}
-
-.circles:hover {
-    opacity: 1;
-    stroke-width: 3px;
-}
-
-.axis path,
-.axis line {
+.gratLines {
     fill: none;
-    stroke: black;
-    stroke-width: 1px;
-    shape-rendering: crispEdges;
-}
-
-.axis text {
-    font-family: sans-serif;
-    font-size: 0.9em;
-}
-
-.title {
-    font-family: sans-serif;
-    font-size: 1.5em;
-    font-weight: bold;
-}
-
-.labels {
-    font-family: sans-serif;
-    font-size: 0.9em;
-}
-
-.popLine {
-    font-size: 0.8em;
-    fill: grey;
+    stroke: #999;
+    stroke-width: 0.5px;
 }
