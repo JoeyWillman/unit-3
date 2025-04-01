@@ -6,25 +6,24 @@
     window.onload = setMap;
 
     function setMap(){
-        var containerWidth = document.getElementById("map-container").clientWidth,
-            mapHeight = document.getElementById("map-container").clientHeight,
-            chartHeight = document.getElementById("bar-chart-container").clientHeight;
+        var container = document.getElementById("map-container");
+        var containerWidth = container.clientWidth;
+        var containerHeight = container.clientHeight;
 
         var map = d3.select("#map-container")
             .append("svg")
             .attr("class", "map")
             .attr("width", containerWidth)
-            .attr("height", mapHeight);
+            .attr("height", containerHeight);
 
         var projection = d3.geoConicEqualArea()
             .rotate([96, 0])
             .center([0, 37.5])
             .parallels([29.5, 45.5])
-            .scale(1000)
-            .translate([containerWidth / 2, mapHeight / 2]);
+            .scale(1) // temporary
+            .translate([0, 0]); // temporary
 
         var path = d3.geoPath().projection(projection);
-
         var graticule = d3.geoGraticule().step([5, 5]);
 
         var promises = [
@@ -43,9 +42,24 @@
 
             usStatesFeatures = usStatesFeatures.filter(d => d.properties.NAME !== "Alaska" && d.properties.NAME !== "Hawaii");
 
-            usStatesFeatures = joinData(usStatesFeatures, csvData);
+            var bounds = d3.geoPath().projection(projection).bounds({
+                type: "FeatureCollection",
+                features: usStatesFeatures
+            });
+            var scale = 0.95 / Math.max(
+                (bounds[1][0] - bounds[0][0]) / containerWidth,
+                (bounds[1][1] - bounds[0][1]) / containerHeight
+            );
+            var translate = [
+                (containerWidth - scale * (bounds[1][0] + bounds[0][0])) / 2,
+                (containerHeight - scale * (bounds[1][1] + bounds[0][1])) / 2
+            ];
 
-            var colorScale = makeColorScale(csvData);
+            projection
+                .scale(scale)
+                .translate(translate);
+
+            path = d3.geoPath().projection(projection);
 
             map.append("path")
                 .datum(graticule.outline())
@@ -68,8 +82,10 @@
                 .style("fill", "#ccc")
                 .style("stroke", "#fff");
 
-            setEnumerationUnits(usStatesFeatures, map, path, colorScale);
+            usStatesFeatures = joinData(usStatesFeatures, csvData);
+            var colorScale = makeColorScale(csvData);
 
+            setEnumerationUnits(usStatesFeatures, map, path, colorScale);
             setChart(csvData, colorScale);
 
         }).catch(function(error){
@@ -172,7 +188,7 @@
             .attr("y", d => yScale(parseFloat(d[expressed])) + topBottomPadding + 15)
             .text(d => d[expressed]);
 
-            chart.append("text")
+        chart.append("text")
             .attr("x", containerWidth / 2)
             .attr("y", 30)
             .attr("class", "chartTitle")
