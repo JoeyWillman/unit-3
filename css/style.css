@@ -1,9 +1,94 @@
-.gratBackground {
-    fill: #D5E3FF; /* Light blue fill representing water */
-}
-
-.gratLines {
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    overflow: hidden; /* prevent scrollbars if not needed */
+  }
+  
+  #container {
+    display: flex;
+    flex-direction: column; /* vertical stacking */
+    height: 100vh;
+  }
+  
+  #map-container {
+    flex: 0 0 60%; /* takes 60% of vertical height */
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-bottom: medium solid #999;
+  }
+  
+  #bar-chart-container {
+    flex: 0 0 40%; /* takes 40% of vertical height */
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(128, 128, 128, 0.1);
+    border-top: medium solid #999;
+  }
+  
+  /* Let SVGs resize properly */
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+  .gratBackground {
+    fill: #D5E3FF;
+  }
+  
+  .gratLines {
     fill: none;
     stroke: #999;
     stroke-width: 0.5px;
+  }
+  
+  .state {
+    stroke: #000;
+    stroke-width: 0.5px;
+    stroke-linecap: round;
+  }
+  
+  .chartBackground {
+    fill: #ffffff;
+  }
+  
+  .bar {
+    fill: steelblue;
+    stroke: #000;
+  }
+  
+  .chartTitle {
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .axis path,
+  .axis line {
+    fill: none;
+    stroke: #000;
+    shape-rendering: crispEdges;
+  }
+  
+  .axis text {
+    font-family: sans-serif;
+    font-size: 0.8em;
+    fill: #999;
+  }
+  
+  .chartFrame {
+    fill: none;
+    stroke: #999;
+    stroke-width: 3px;
+    shape-rendering: crispEdges;
+  }
+  .numbers {
+    fill: white;
+    font-family: sans-serif;
+    font-size: 0.75em;
 }
+
+
