@@ -1,205 +1,268 @@
-(function(){
+(function() {
+    //Define the available attributes to visualize
+    const attrArray = [
+        "Average Temp",
+        "Max Temp",
+        "Min Temp",
+        "Precipitation",
+        "Palmer Drought Severity Index"
+    ];
+    let expressed = attrArray[0]; //Default attribute
 
-    var attrArray = ["Average Temp", "Max Temp", "Min Temp", "Precipitation", "Palmer Drought Severity Index"];
-    var expressed = attrArray[0];
+    window.onload = setMap; //Run setMap when page loads
 
-    window.onload = setMap;
+    function setMap() {
+        //Get dimensions of map container
+        const containerWidth = document.getElementById("map-container").clientWidth;
+        const containerHeight = document.getElementById("map-container").clientHeight;
 
-    function setMap(){
-        var container = document.getElementById("map-container");
-        var containerWidth = container.clientWidth;
-        var containerHeight = container.clientHeight;
-
-        var map = d3.select("#map-container")
-            .append("svg")
+        //Create the SVG element for the map
+        const map = d3.select("#map-container").append("svg")
             .attr("class", "map")
             .attr("width", containerWidth)
             .attr("height", containerHeight);
 
-        var projection = d3.geoConicEqualArea()
+        //Set up Albers USA projection
+        const projection = d3.geoConicEqualArea()
             .rotate([96, 0])
             .center([0, 37.5])
             .parallels([29.5, 45.5])
-            .scale(1) // temporary
-            .translate([0, 0]); // temporary
+            .scale(1)
+            .translate([0, 0]);
 
-        var path = d3.geoPath().projection(projection);
-        var graticule = d3.geoGraticule().step([5, 5]);
+        let path = d3.geoPath().projection(projection); //Path generator
+        const graticule = d3.geoGraticule().step([5, 5]); //Graticule lines
 
-        var promises = [
+        //Load CSV and TopoJSON data
+        const promises = [
             d3.csv("data/climate-data.csv"),
             d3.json("data/us-states.topojson"),
             d3.json("data/countries.topojson")
         ];
 
-        Promise.all(promises).then(function(data){
-            var csvData = data[0],
-                usStates = data[1],
-                countries = data[2];
+        Promise.all(promises).then(callback); //Once data is loaded, run callback
 
-            var usStatesFeatures = topojson.feature(usStates, usStates.objects.cb_2018_us_state_20m).features;
-            var countriesFeatures = topojson.feature(countries, countries.objects.ne_10m_admin_0_countries).features;
+        function callback([csvData, usStates, countries]) {
+            //Convert TopoJSON to GeoJSON features
+            let usStatesFeatures = topojson.feature(usStates, usStates.objects.cb_2018_us_state_20m).features;
+            const countriesFeatures = topojson.feature(countries, countries.objects.ne_10m_admin_0_countries).features;
 
-            usStatesFeatures = usStatesFeatures.filter(d => d.properties.NAME !== "Alaska" && d.properties.NAME !== "Hawaii");
+            //Filter out Alaska and Hawaii
+            usStatesFeatures = usStatesFeatures.filter(d => !["Alaska", "Hawaii"].includes(d.properties.NAME));
 
-            var bounds = d3.geoPath().projection(projection).bounds({
-                type: "FeatureCollection",
-                features: usStatesFeatures
-            });
-            var scale = 0.95 / Math.max(
+            //Calculate appropriate scale and translation
+            const bounds = path.bounds({type: "FeatureCollection", features: usStatesFeatures});
+            const scale = 0.95 / Math.max(
                 (bounds[1][0] - bounds[0][0]) / containerWidth,
                 (bounds[1][1] - bounds[0][1]) / containerHeight
             );
-            var translate = [
+            const translate = [
                 (containerWidth - scale * (bounds[1][0] + bounds[0][0])) / 2,
                 (containerHeight - scale * (bounds[1][1] + bounds[0][1])) / 2
             ];
 
-            projection
-                .scale(scale)
-                .translate(translate);
+            projection.scale(scale).translate(translate); //Update projection
+            path = d3.geoPath().projection(projection); //Update path
 
-            path = d3.geoPath().projection(projection);
-
+            //Add graticule background
             map.append("path")
                 .datum(graticule.outline())
                 .attr("class", "gratBackground")
                 .attr("d", path);
 
+            //Add graticule lines
             map.selectAll(".gratLines")
                 .data(graticule.lines())
-                .enter()
-                .append("path")
+                .enter().append("path")
                 .attr("class", "gratLines")
                 .attr("d", path);
 
+            //Draw country outlines
             map.selectAll(".country")
                 .data(countriesFeatures)
-                .enter()
-                .append("path")
+                .enter().append("path")
                 .attr("class", "country")
                 .attr("d", path)
                 .style("fill", "#ccc")
                 .style("stroke", "#fff");
 
+            //Join CSV data to states
             usStatesFeatures = joinData(usStatesFeatures, csvData);
-            var colorScale = makeColorScale(csvData);
 
-            setEnumerationUnits(usStatesFeatures, map, path, colorScale);
-            setChart(csvData, colorScale);
+            //Create initial color scale
+            let colorScale = makeColorScale(csvData);
 
-        }).catch(function(error){
-            console.log("Error loading data: ", error);
-        });
+            //Set dropdown menu and draw views
+            setDropdown(csvData, usStatesFeatures, map, path);
+            drawMap(usStatesFeatures, map, path, colorScale);
+            drawBarChart(csvData, colorScale);
+        }
     }
 
-    function joinData(geojsonData, csvData){
-        for (let i = 0; i < csvData.length; i++){
-            var csvState = csvData[i];
-            var csvKey = csvState.State;
-
-            for (let j = 0; j < geojsonData.length; j++){
-                var geoProps = geojsonData[j].properties;
-                var geoKey = geoProps.NAME;
-
-                if (geoKey === csvKey){
-                    attrArray.forEach(function(attr){
-                        geoProps[attr] = parseFloat(csvState[attr]);
+    //Join CSV values to GeoJSON features
+    function joinData(geojsonData, csvData) {
+        csvData.forEach(row => {
+            const csvKey = row.State;
+            geojsonData.forEach(feature => {
+                if (feature.properties.NAME === csvKey) {
+                    attrArray.forEach(attr => {
+                        feature.properties[attr] = parseFloat(row[attr]);
                     });
                 }
-            }
-        }
+            });
+        });
         return geojsonData;
     }
 
-    function makeColorScale(data){
-        var colorClasses = ["#D4B9DA", "#C994C7", "#DF65B0", "#DD1C77", "#980043"];
-
-        var colorScale = d3.scaleQuantile().range(colorClasses);
-
-        var domainArray = data.map(d => parseFloat(d[expressed])).filter(d => !isNaN(d));
-        colorScale.domain(domainArray);
-
-        return colorScale;
+    //Create a quantile color scale
+    function makeColorScale(data) {
+        const colorClasses = ["#D4B9DA", "#C994C7", "#DF65B0", "#DD1C77", "#980043"];
+        const scale = d3.scaleQuantile().range(colorClasses);
+        const domain = data.map(d => parseFloat(d[expressed])).filter(d => !isNaN(d));
+        scale.domain(domain);
+        return scale;
     }
 
-    function setEnumerationUnits(geojsonData, map, path, colorScale){
+    //Create and populate the dropdown menu
+    function setDropdown(csvData, geojsonData, map, path) {
+        const dropdown = d3.select("#attributeSelect");
+        dropdown.selectAll("option")
+            .data(attrArray)
+            .enter()
+            .append("option")
+            .attr("value", d => d)
+            .text(d => d);
+
+        //Update visuals when user selects a new variable
+        dropdown.on("change", function() {
+            expressed = this.value;
+            const colorScale = makeColorScale(csvData);
+            updateMap(map, colorScale);
+            updateChart(csvData, colorScale);
+        });
+    }
+
+    //Draw the choropleth map
+    function drawMap(geojsonData, map, path, colorScale) {
         map.selectAll(".state")
             .data(geojsonData)
             .enter()
             .append("path")
-            .attr("class", d => "state " + d.properties.NAME)
+            .attr("class", d => "state " + d.properties.NAME.replace(/\s/g, "_"))
             .attr("d", path)
             .style("fill", d => {
-                var val = d.properties[expressed];
+                const val = d.properties[expressed];
                 return val ? colorScale(val) : "#ccc";
             })
-            .style("stroke", "#fff");
+            .style("stroke", "#fff")
+            .on("mouseover", highlight)
+            .on("mouseout", dehighlight)
+            .on("mousemove", moveTooltip);
     }
 
-    function setChart(csvData, colorScale){
-        var containerWidth = document.getElementById("bar-chart-container").clientWidth,
-            containerHeight = document.getElementById("bar-chart-container").clientHeight,
-            leftPadding = 0.1,
-            rightPadding = 0.1,
-            topBottomPadding = 0.1,
-            chartInnerWidth = containerWidth - leftPadding - rightPadding,
-            chartInnerHeight = containerHeight - topBottomPadding * 2,
-            translate = "translate(" + leftPadding + "," + topBottomPadding + ")";
+    //Draw the initial bar chart
+    function drawBarChart(csvData, colorScale) {
+        const container = d3.select("#bar-chart-container");
+        const w = container.node().clientWidth;
+        const h = container.node().clientHeight;
+        const padding = {top: 40, right: 10, bottom: 50, left: 40};
 
-        var chart = d3.select("#bar-chart-container")
-            .append("svg")
-            .attr("width", containerWidth)
-            .attr("height", containerHeight)
-            .attr("class", "chart");
+        const svg = container.append("svg")
+            .attr("class", "chart")
+            .attr("width", w)
+            .attr("height", h);
 
-        chart.append("rect")
-            .attr("class", "chartBackground")
-            .attr("width", chartInnerWidth)
-            .attr("height", chartInnerHeight)
-            .attr("transform", translate);
+        svg.append("g").attr("class", "bars");
 
-        var yScale = d3.scaleLinear()
-            .range([chartInnerHeight, 0])
+        svg.append("text")
+            .attr("class", "chartTitle")
+            .attr("x", w / 2)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .text(`${expressed} by State`);
+
+        updateChart(csvData, colorScale);
+    }
+
+    //Update choropleth fill colors
+    function updateMap(map, colorScale) {
+        map.selectAll(".state")
+            .transition()
+            .duration(1000)
+            .style("fill", d => {
+                const val = d.properties[expressed];
+                return val ? colorScale(val) : "#ccc";
+            });
+    }
+
+    //Update the bar chart when a new attribute is selected
+    function updateChart(csvData, colorScale) {
+        //Sort the data by value
+        csvData.sort((a, b) => parseFloat(b[expressed]) - parseFloat(a[expressed]));
+
+        const svg = d3.select(".chart");
+        const bars = svg.select(".bars");
+
+        const w = +svg.attr("width");
+        const h = +svg.attr("height");
+        const padding = {top: 40, right: 10, bottom: 50, left: 40};
+
+        const x = d3.scaleBand()
+            .range([padding.left, w - padding.right])
+            .padding(0.1)
+            .domain(csvData.map(d => d.State));
+
+        const y = d3.scaleLinear()
+            .range([h - padding.bottom, padding.top])
             .domain([0, d3.max(csvData, d => parseFloat(d[expressed]))]);
 
-        var barWidth = chartInnerWidth / csvData.length;
+        //Clear old bars and labels
+        bars.selectAll("rect").remove();
+        bars.selectAll("text").remove();
 
-        chart.selectAll(".bar")
-            .data(csvData)
+        //Add updated bars
+        bars.selectAll("rect")
+            .data(csvData, d => d.State)
             .enter()
             .append("rect")
-            .sort((a, b) => b[expressed] - a[expressed])
-            .attr("class", d => "bar " + d.State)
-            .attr("width", barWidth - 1)
-            .attr("x", (d, i) => i * barWidth + leftPadding)
-            .attr("height", d => chartInnerHeight - yScale(parseFloat(d[expressed])))
-            .attr("y", d => yScale(parseFloat(d[expressed])) + topBottomPadding)
-            .style("fill", d => colorScale(d[expressed]));
+            .attr("x", d => x(d.State))
+            .attr("y", d => y(d[expressed]))
+            .attr("height", d => h - padding.bottom - y(d[expressed]))
+            .attr("width", x.bandwidth())
+            .attr("class", d => "bar " + d.State.replace(/\s/g, "_"))
+            .style("fill", d => colorScale(d[expressed]))
+            .on("mouseover", highlight)
+            .on("mouseout", dehighlight)
+            .on("mousemove", moveTooltip);
 
-        chart.selectAll(".numbers")
-            .data(csvData)
-            .enter()
-            .append("text")
-            .sort((a, b) => b[expressed] - a[expressed])
-            .attr("class", d => "numbers " + d.State)
-            .attr("text-anchor", "middle")
-            .attr("x", (d, i) => i * barWidth + leftPadding + (barWidth - 1) / 2)
-            .attr("y", d => yScale(parseFloat(d[expressed])) + topBottomPadding + 15)
-            .text(d => d[expressed]);
+       
 
-        chart.append("text")
-            .attr("x", containerWidth / 2)
-            .attr("y", 30)
-            .attr("class", "chartTitle")
-            .attr("text-anchor", "middle")
-            .text("Average Temperature in each state in January 2025");
+        //Update chart title
+        svg.select(".chartTitle").text(`${expressed} by State`);
+    }
 
-        chart.append("rect")
-            .attr("class", "chartFrame")
-            .attr("width", chartInnerWidth)
-            .attr("height", chartInnerHeight)
-            .attr("transform", translate);
+    //Highlight function for map and chart
+    function highlight(event, d) {
+        const stateName = d.properties ? d.properties.NAME : d.State;
+        d3.selectAll("." + stateName.replace(/\s/g, "_")).classed("highlight", true);
+
+        const tooltip = d3.select("#tooltip");
+        tooltip.style("opacity", 1)
+            .html(`<strong>${stateName}</strong><br>${expressed}: ${d.properties ? d.properties[expressed] : d[expressed]}`);
+    }
+
+    //Remove highlight
+    function dehighlight(event, d) {
+        const stateName = d.properties ? d.properties.NAME : d.State;
+        d3.selectAll("." + stateName.replace(/\s/g, "_")).classed("highlight", false);
+        d3.select("#tooltip").style("opacity", 0);
+    }
+
+    //Move tooltip with mouse
+    function moveTooltip(event) {
+        d3.select("#tooltip")
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 30) + "px");
     }
 
 })();
